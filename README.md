@@ -36,7 +36,7 @@ uvicorn main:app --reload
 
 ## Deploy To Vercel
 
-This project exposes a top-level FastAPI `app` through `app.py`, which imports the main application from `main.py`. Vercel detects `app.py` as the FastAPI entrypoint.
+This project exposes the FastAPI app through both `app.py` and `api/index.py`. `vercel.json` explicitly routes all requests to `api/index.py`, which imports the main application from `main.py`.
 
 1. Push the repo to GitHub.
 2. In Vercel, create a new project and import the repo.
