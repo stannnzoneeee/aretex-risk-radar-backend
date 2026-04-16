@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crime Forecast Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .header h2 {
+            margin: 0;
+            color: #333;
+            font-weight: 500;
+        }
+        .btn {
+            background-color: #f1f3f5;
+            border: none;
+            padding: 8px 16px;
+            margin-left: 10px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .btn.active {
+            background-color: #5e35b1;
+            color: white;
+        }
+        #forecast-container {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>Reports Trend</h2>
+            <button class="btn active" onclick="updateForecast('yearly')">Yearly</button>
+            <button class="btn" onclick="updateForecast('monthly')">Monthly</button>
+            <button class="btn" onclick="updateForecast('weekly')">Weekly</button>
+        </div>
+        <div id="forecast-container">
+            <iframe id="forecast-frame" src="/forecast/yearly" width="100%" height="400" frameborder="0"></iframe>
+        </div>
+    </div>
+
+    <script>
+        function updateForecast(period) {
+            document.getElementById('forecast-frame').src = `/forecast/${period}`;
+            
+            // Update button states
+            const buttons = document.querySelectorAll('.btn');
+            buttons.forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.textContent.toLowerCase().includes(period)) {
+                    btn.classList.add('active');
+                }
+            });
+        }
+    </script>
+</body>
+</html>
