@@ -165,6 +165,95 @@ async def startup_event():
 
 # DASHBOARD ROUTES
 @app.get("/", response_class=HTMLResponse)
+async def backend_test_ui():
+    initialized = getattr(app.state, "initialized", False)
+    status = "Ready" if initialized else "Initializing or startup failed"
+    forecasting_mode = "Prophet training enabled" if ENABLE_FORECASTING else "Static graphs, training paused"
+    periodic_mode = "Enabled" if ENABLE_PERIODIC_UPDATES else "Disabled"
+
+    return HTMLResponse(f"""<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Aretex Risk Radar Backend</title>
+    <style>
+        body {{
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f5f7fb;
+            color: #182033;
+        }}
+        main {{
+            width: min(960px, calc(100% - 32px));
+            margin: 40px auto;
+        }}
+        header {{
+            padding: 24px;
+            background: #ffffff;
+            border: 1px solid #d9e2ef;
+            border-radius: 8px;
+        }}
+        h1 {{
+            margin: 0 0 8px;
+            font-size: 28px;
+        }}
+        .grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 14px;
+            margin-top: 18px;
+        }}
+        a, .panel {{
+            display: block;
+            padding: 16px;
+            border: 1px solid #d9e2ef;
+            border-radius: 8px;
+            background: #ffffff;
+            color: #0f4c81;
+            text-decoration: none;
+        }}
+        a:hover {{
+            border-color: #0f4c81;
+        }}
+        small {{
+            display: block;
+            margin-top: 6px;
+            color: #5c6b82;
+        }}
+        code {{
+            background: #eef3f8;
+            padding: 2px 5px;
+            border-radius: 4px;
+        }}
+    </style>
+</head>
+<body>
+    <main>
+        <header>
+            <h1>Aretex Risk Radar Backend</h1>
+            <p>Status: <strong>{status}</strong></p>
+            <p>Forecasting: <strong>{forecasting_mode}</strong></p>
+            <p>Periodic updates: <strong>{periodic_mode}</strong></p>
+            <p>Frontend allowed origin: <code>{FRONTEND_ORIGIN}</code></p>
+        </header>
+        <section class="grid">
+            <a href="/health">Health Check<small>JSON status response</small></a>
+            <a href="/dashboard">Legacy Dashboard<small>Backend dashboard template</small></a>
+            <a href="/api/heatmap">Heatmap<small>Generated map HTML</small></a>
+            <a href="/api/hotspot-map">Hotspot Map<small>Generated hotspot HTML</small></a>
+            <a href="/api/status-map">Status Map<small>Generated status HTML</small></a>
+            <a href="/api/forecast/crime-trend">Crime Trend Graph<small>Static graph while training is paused</small></a>
+            <a href="/api/forecast/top-locations">Top Locations Graph<small>Static graph while training is paused</small></a>
+            <a href="/api/forecast/data">Forecast JSON<small>Data for frontend charts</small></a>
+            <a href="/weather">Weather Dashboard<small>Generated weather HTML</small></a>
+        </section>
+    </main>
+</body>
+</html>""")
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(request: Request):
     if not hasattr(app.state, 'initialized') or not app.state.initialized:
         return HTMLResponse("<h1>Initializing... Please refresh shortly</h1>", status_code=503)

@@ -36,7 +36,7 @@ uvicorn main:app --reload
 
 ## Deploy To Vercel
 
-This project exposes a top-level FastAPI `app` in `main.py`, so Vercel can detect it as a Python/FastAPI project.
+This project exposes a top-level FastAPI `app` through `app.py`, which imports the main application from `main.py`. Vercel detects `app.py` as the FastAPI entrypoint.
 
 1. Push the repo to GitHub.
 2. In Vercel, create a new project and import the repo.
@@ -53,6 +53,8 @@ ENABLE_PERIODIC_UPDATES=false
 ```
 
 5. Deploy.
+
+After deployment, open the backend domain directly. The root path `/` should show a simple backend test UI with links to `/health`, maps, weather, and forecast graph endpoints.
 
 You can also deploy from the CLI:
 
