@@ -8,6 +8,33 @@ import plotly.graph_objs as go
 TREND_FILENAME = "crime_trend_forecast.html"
 TOP_LOCATIONS_FILENAME = "top_locations_crime.html"
 
+COLORS = {
+    "page": "#07090d",
+    "panel": "#10151c",
+    "plot": "#0c1117",
+    "grid": "rgba(141, 255, 234, 0.13)",
+    "text": "#edfdf9",
+    "muted": "#94a3b8",
+    "line": "#00f5d4",
+    "line_soft": "rgba(0, 245, 212, 0.16)",
+    "baseline": "#ff5c7a",
+    "yellow": "#fee440",
+    "edge": "rgba(141, 255, 234, 0.32)",
+}
+
+BAR_COLORS = [
+    "#00f5d4",
+    "#fee440",
+    "#ff5c7a",
+    "#4ade80",
+    "#38bdf8",
+    "#f97316",
+    "#22c55e",
+    "#f15bb5",
+    "#a3e635",
+    "#67e8f9",
+]
+
 
 def _empty_page(title: str, message: str) -> str:
     generated_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
@@ -24,19 +51,24 @@ def _empty_page(title: str, message: str) -> str:
             display: grid;
             place-items: center;
             font-family: Arial, sans-serif;
-            color: #172033;
-            background: #f4f7fb;
+            color: {COLORS["text"]};
+            background:
+                linear-gradient(90deg, rgba(141, 255, 234, 0.05) 1px, transparent 1px),
+                linear-gradient(0deg, rgba(141, 255, 234, 0.05) 1px, transparent 1px),
+                {COLORS["page"]};
+            background-size: 32px 32px;
         }}
         main {{
             width: min(720px, calc(100% - 32px));
             padding: 24px;
-            border: 1px solid #d7dfeb;
+            border: 1px solid {COLORS["edge"]};
             border-radius: 8px;
-            background: #ffffff;
+            background: {COLORS["panel"]};
+            box-shadow: 0 18px 70px rgba(0, 0, 0, 0.38);
         }}
         h1 {{ margin: 0 0 12px; font-size: 24px; }}
         p {{ line-height: 1.5; }}
-        small {{ color: #5d6b82; }}
+        small {{ color: {COLORS["muted"]}; }}
     </style>
 </head>
 <body>
@@ -144,22 +176,148 @@ def _base_layout(title: str, subtitle: str) -> dict:
             "text": f"<b>{title}</b><br><sup>{subtitle}</sup>",
             "x": 0.03,
             "xanchor": "left",
+            "font": {"size": 25, "color": COLORS["text"]},
         },
-        "font": {"family": "Arial, sans-serif", "size": 14, "color": "#1f2937"},
-        "paper_bgcolor": "#f8fafc",
-        "plot_bgcolor": "#ffffff",
-        "margin": {"t": 90, "r": 32, "b": 64, "l": 72},
-        "height": 560,
+        "template": "none",
+        "font": {"family": "Arial, sans-serif", "size": 14, "color": COLORS["text"]},
+        "paper_bgcolor": COLORS["panel"],
+        "plot_bgcolor": COLORS["plot"],
+        "margin": {"t": 94, "r": 42, "b": 74, "l": 78},
+        "height": 590,
+        "hovermode": "x unified",
+        "legend": {
+            "orientation": "h",
+            "x": 0.03,
+            "y": 1.03,
+            "bgcolor": "rgba(16, 21, 28, 0.78)",
+            "bordercolor": COLORS["edge"],
+            "borderwidth": 1,
+            "font": {"color": COLORS["text"]},
+        },
+        "hoverlabel": {
+            "bgcolor": "#111827",
+            "bordercolor": COLORS["line"],
+            "font": {"color": COLORS["text"], "family": "Arial, sans-serif"},
+        },
     }
 
 
-def _write_html(fig: go.Figure, path: str) -> None:
-    fig.write_html(
-        path,
+def _write_html(fig: go.Figure, path: str, title: str, subtitle: str) -> None:
+    chart_html = fig.to_html(
         include_plotlyjs="cdn",
-        full_html=True,
+        full_html=False,
         config={"displayModeBar": False, "responsive": True},
     )
+    generated_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    html = f"""<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{title}</title>
+    <style>
+        * {{ box-sizing: border-box; }}
+        body {{
+            margin: 0;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+            color: {COLORS["text"]};
+            background:
+                linear-gradient(90deg, rgba(141, 255, 234, 0.055) 1px, transparent 1px),
+                linear-gradient(0deg, rgba(141, 255, 234, 0.055) 1px, transparent 1px),
+                {COLORS["page"]};
+            background-size: 34px 34px;
+        }}
+        main {{
+            width: min(1180px, calc(100% - 28px));
+            margin: 18px auto;
+            border: 1px solid {COLORS["edge"]};
+            border-radius: 8px;
+            background: rgba(16, 21, 28, 0.96);
+            box-shadow: 0 22px 90px rgba(0, 0, 0, 0.42);
+            overflow: hidden;
+        }}
+        header {{
+            display: flex;
+            justify-content: space-between;
+            gap: 18px;
+            padding: 18px 20px;
+            border-bottom: 1px solid rgba(141, 255, 234, 0.2);
+        }}
+        .eyebrow {{
+            margin: 0 0 6px;
+            color: {COLORS["line"]};
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0;
+            text-transform: uppercase;
+        }}
+        h1 {{
+            margin: 0;
+            font-size: 26px;
+            line-height: 1.2;
+        }}
+        .subtitle {{
+            margin: 8px 0 0;
+            color: {COLORS["muted"]};
+            line-height: 1.45;
+        }}
+        .status {{
+            min-width: 176px;
+            align-self: start;
+            padding: 12px;
+            border: 1px solid rgba(254, 228, 64, 0.38);
+            border-radius: 8px;
+            color: {COLORS["yellow"]};
+            background: rgba(254, 228, 64, 0.08);
+            text-align: right;
+        }}
+        .status strong {{
+            display: block;
+            margin-bottom: 4px;
+            color: {COLORS["text"]};
+        }}
+        .chart {{
+            padding: 8px;
+            min-height: 610px;
+        }}
+        .js-plotly-plot .plotly .main-svg {{
+            border-radius: 8px;
+        }}
+        footer {{
+            padding: 12px 20px 18px;
+            color: {COLORS["muted"]};
+            border-top: 1px solid rgba(141, 255, 234, 0.13);
+            font-size: 13px;
+        }}
+        @media (max-width: 720px) {{
+            header {{ display: block; }}
+            .status {{ margin-top: 14px; text-align: left; }}
+            h1 {{ font-size: 22px; }}
+            .chart {{ min-height: 560px; }}
+        }}
+    </style>
+</head>
+<body>
+    <main>
+        <header>
+            <div>
+                <p class="eyebrow">Aretex Risk Radar</p>
+                <h1>{title}</h1>
+                <p class="subtitle">{subtitle}</p>
+            </div>
+            <div class="status">
+                <strong>Training Paused</strong>
+                Static signal active
+            </div>
+        </header>
+        <section class="chart">{chart_html}</section>
+        <footer>Generated {generated_at}. Static baseline uses historical crime records while model training is paused.</footer>
+    </main>
+</body>
+</html>"""
+    with open(path, "w", encoding="utf-8") as file:
+        file.write(html)
 
 
 def generate_static_forecast_graphs(data_path: str, output_path: str) -> dict:
@@ -199,8 +357,14 @@ def generate_static_forecast_graphs(data_path: str, output_path: str) -> dict:
         y=trend["crime_count"],
         mode="lines+markers",
         name="Recent incidents",
-        line={"color": "#2563eb", "width": 3},
-        marker={"size": 7},
+        line={"color": COLORS["line"], "width": 4, "shape": "spline", "smoothing": 0.55},
+        marker={
+            "size": 8,
+            "color": COLORS["plot"],
+            "line": {"color": COLORS["line"], "width": 2},
+        },
+        fill="tozeroy",
+        fillcolor=COLORS["line_soft"],
         hovertemplate="<b>%{x}</b><br>Incidents: %{y}<extra></extra>",
     ))
     trend_fig.add_trace(go.Scatter(
@@ -208,27 +372,59 @@ def generate_static_forecast_graphs(data_path: str, output_path: str) -> dict:
         y=baseline["crime_count"],
         mode="lines",
         name="Static 30-day baseline",
-        line={"color": "#dc2626", "width": 3, "dash": "dash"},
+        line={"color": COLORS["baseline"], "width": 4, "dash": "dash"},
         hovertemplate="<b>%{x}</b><br>Baseline: %{y:.2f}<extra></extra>",
     ))
     trend_fig.update_layout(**_base_layout("Crime Trend Static Forecast", subtitle))
-    trend_fig.update_xaxes(title="Date", gridcolor="#e5e7eb")
-    trend_fig.update_yaxes(title="Incidents", gridcolor="#e5e7eb", rangemode="tozero")
-    _write_html(trend_fig, trend_path)
+    trend_fig.update_xaxes(
+        title={"text": "Date", "font": {"color": COLORS["text"]}},
+        gridcolor=COLORS["grid"],
+        zeroline=False,
+        linecolor=COLORS["edge"],
+        tickfont={"color": COLORS["muted"]},
+    )
+    trend_fig.update_yaxes(
+        title={"text": "Incidents", "font": {"color": COLORS["text"]}},
+        gridcolor=COLORS["grid"],
+        zeroline=False,
+        rangemode="tozero",
+        linecolor=COLORS["edge"],
+        tickfont={"color": COLORS["muted"]},
+    )
+    _write_html(trend_fig, trend_path, "Crime Trend Static Forecast", subtitle)
 
     location_fig = go.Figure()
     if not locations.empty:
         locations = locations.sort_values("crime_count", ascending=True)
+        bar_colors = [BAR_COLORS[index % len(BAR_COLORS)] for index in range(len(locations))]
         location_fig.add_trace(go.Bar(
             x=locations["crime_count"],
             y=locations["location"],
             orientation="h",
-            marker={"color": "#0f766e"},
+            marker={
+                "color": bar_colors,
+                "line": {"color": "rgba(237, 253, 249, 0.36)", "width": 1},
+            },
+            text=locations["crime_count"],
+            textposition="auto",
+            textfont={"color": COLORS["text"], "size": 13},
             hovertemplate="<b>%{y}</b><br>Incidents: %{x}<extra></extra>",
         ))
     location_fig.update_layout(**_base_layout("Top Locations Static Graph", subtitle))
-    location_fig.update_xaxes(title="Incidents", gridcolor="#e5e7eb", rangemode="tozero")
-    location_fig.update_yaxes(title="")
-    _write_html(location_fig, top_locations_path)
+    location_fig.update_layout(showlegend=False)
+    location_fig.update_xaxes(
+        title={"text": "Incidents", "font": {"color": COLORS["text"]}},
+        gridcolor=COLORS["grid"],
+        zeroline=False,
+        rangemode="tozero",
+        linecolor=COLORS["edge"],
+        tickfont={"color": COLORS["muted"]},
+    )
+    location_fig.update_yaxes(
+        title="",
+        gridcolor="rgba(0,0,0,0)",
+        tickfont={"color": COLORS["text"], "size": 12},
+    )
+    _write_html(location_fig, top_locations_path, "Top Locations Static Graph", subtitle)
 
     return {"trend_path": trend_path, "top_locations_path": top_locations_path, "payload": payload}
