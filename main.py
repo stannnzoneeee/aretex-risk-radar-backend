@@ -39,6 +39,7 @@ STATIC_PATH = os.getenv(
 )
 ENABLE_FORECASTING = env_flag("ENABLE_FORECASTING", False)
 ENABLE_PERIODIC_UPDATES = env_flag("ENABLE_PERIODIC_UPDATES", not IS_VERCEL)
+SKIP_STARTUP_JOBS = env_flag("SKIP_STARTUP_JOBS", IS_VERCEL)
 FRONTEND_ORIGIN = "https://aretex-risk-radar.vercel.app"
 
 os.makedirs(DATA_PATH, exist_ok=True)
@@ -91,12 +92,99 @@ def run_static_forecasting() -> None:
     generate_static_forecast_graphs(DATA_PATH, STATIC_PATH)
 
 
+def write_placeholder_html(filename: str, title: str, message: str) -> str:
+    os.makedirs(STATIC_PATH, exist_ok=True)
+    file_path = os.path.join(STATIC_PATH, filename)
+    with open(file_path, "w", encoding="utf-8") as file:
+        file.write(f"""<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{title}</title>
+    <style>
+        body {{
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            font-family: Arial, sans-serif;
+            color: #182033;
+            background: #f5f7fb;
+        }}
+        main {{
+            width: min(760px, calc(100% - 32px));
+            padding: 24px;
+            border: 1px solid #d9e2ef;
+            border-radius: 8px;
+            background: #ffffff;
+        }}
+        h1 {{ margin: 0 0 12px; font-size: 24px; }}
+        p {{ line-height: 1.5; color: #4b5870; }}
+    </style>
+</head>
+<body>
+    <main>
+        <h1>{title}</h1>
+        <p>{message}</p>
+    </main>
+</body>
+</html>""")
+    return file_path
+
+
+def ensure_analysis_outputs() -> None:
+    expected_files = ["heatmap.html", "hotspot_map.html", "status_map.html"]
+    if all(os.path.exists(os.path.join(STATIC_PATH, filename)) for filename in expected_files):
+        return
+
+    try:
+        downloader.start_single_download(['crime_records', 'crime_types', 'locations'])
+        df, kmeans_model = load_and_preprocess_data(DATA_PATH)
+        if df.empty:
+            raise ValueError("No valid data available")
+        generate_analysis_maps(df, kmeans_model, DATA_PATH, STATIC_PATH)
+    except Exception as e:
+        print(f"Lazy map generation failed: {str(e)}")
+        for filename, title in [
+            ("heatmap.html", "Heatmap Unavailable"),
+            ("hotspot_map.html", "Hotspot Map Unavailable"),
+            ("status_map.html", "Status Map Unavailable"),
+        ]:
+            if not os.path.exists(os.path.join(STATIC_PATH, filename)):
+                write_placeholder_html(
+                    filename,
+                    title,
+                    "The backend is online, but this generated map is not available yet. Check MongoDB environment variables and redeploy if this stays visible.",
+                )
+
+
+def get_generated_file(filename: str, title: str) -> FileResponse:
+    file_path = os.path.join(STATIC_PATH, filename)
+    if not os.path.exists(file_path):
+        ensure_analysis_outputs()
+    if not os.path.exists(file_path):
+        file_path = write_placeholder_html(
+            filename,
+            title,
+            "The backend is online, but this generated file is not available yet.",
+        )
+    return FileResponse(file_path)
+
+
 def get_forecast_file(filename: str) -> FileResponse:
     forecast_path = os.path.join(STATIC_PATH, filename)
     if not os.path.exists(forecast_path):
-        run_static_forecasting()
+        try:
+            run_static_forecasting()
+        except Exception as e:
+            print(f"Static forecast generation failed: {str(e)}")
     if not os.path.exists(forecast_path):
-        raise HTTPException(404, detail="Forecast graph is not available yet.")
+        forecast_path = write_placeholder_html(
+            filename,
+            "Forecast Graph Unavailable",
+            "The backend is online and forecast training is paused. Static graph data is not available yet.",
+        )
     return FileResponse(forecast_path)
 
 
@@ -107,6 +195,13 @@ async def startup_event():
         print(f"Runtime data path: {DATA_PATH}")
         print(f"Generated static path: {STATIC_PATH}")
         print(f"Forecasting enabled: {ENABLE_FORECASTING}")
+        print(f"Skip startup jobs: {SKIP_STARTUP_JOBS}")
+        if SKIP_STARTUP_JOBS:
+            app.state.initialized = True
+            app.state.startup_skipped = True
+            print("Startup data jobs skipped. Generated files will be created lazily.")
+            return
+
         downloader.start_single_download(['crime_records', 'crime_types', 'locations'])
 
         # Load and preprocess data
@@ -167,7 +262,11 @@ async def startup_event():
 @app.get("/", response_class=HTMLResponse)
 async def backend_test_ui():
     initialized = getattr(app.state, "initialized", False)
-    status = "Ready" if initialized else "Initializing or startup failed"
+    startup_skipped = getattr(app.state, "startup_skipped", False)
+    if startup_skipped:
+        status = "Ready, startup data jobs skipped"
+    else:
+        status = "Ready" if initialized else "Initializing or startup failed"
     forecasting_mode = "Prophet training enabled" if ENABLE_FORECASTING else "Static graphs, training paused"
     periodic_mode = "Enabled" if ENABLE_PERIODIC_UPDATES else "Disabled"
 
@@ -235,6 +334,7 @@ async def backend_test_ui():
             <p>Status: <strong>{status}</strong></p>
             <p>Forecasting: <strong>{forecasting_mode}</strong></p>
             <p>Periodic updates: <strong>{periodic_mode}</strong></p>
+            <p>Startup jobs skipped: <strong>{SKIP_STARTUP_JOBS}</strong></p>
             <p>Frontend allowed origin: <code>{FRONTEND_ORIGIN}</code></p>
         </header>
         <section class="grid">
@@ -263,19 +363,19 @@ async def dashboard(request: Request):
 async def get_heat_map():
     if not hasattr(app.state, 'initialized') or not app.state.initialized:
         raise HTTPException(503, detail="Service initializing")
-    return FileResponse(os.path.join(STATIC_PATH, 'heatmap.html'))
+    return get_generated_file('heatmap.html', 'Heatmap')
 
 @app.get("/hotspot-map", response_class=HTMLResponse)
 async def get_hotspot_map():
     if not hasattr(app.state, 'initialized') or not app.state.initialized:
         raise HTTPException(503, detail="Service initializing")
-    return FileResponse(os.path.join(STATIC_PATH, 'hotspot_map.html'))
+    return get_generated_file('hotspot_map.html', 'Hotspot Map')
 
 @app.get("/status-map", response_class=HTMLResponse)
 async def get_status_map():
     if not hasattr(app.state, 'initialized') or not app.state.initialized:
         raise HTTPException(503, detail="Service initializing")
-    return FileResponse(os.path.join(STATIC_PATH, 'status_map.html'))
+    return get_generated_file('status_map.html', 'Status Map')
 
 @app.get("/forecast/crime-trend", response_class=HTMLResponse)
 async def get_crime_trend_forecast():
@@ -322,7 +422,8 @@ async def hotspot_data():
         df, kmeans_model = load_and_preprocess_data(DATA_PATH)
         return get_hotspot_data(df, kmeans_model)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get hotspot data: {str(e)}")
+        print(f"Failed to get hotspot data: {str(e)}")
+        return {"hotspots": [], "detail": "Hotspot data is not available yet."}
 
 
 @app.get("/api/forecast/data", response_class=JSONResponse)
@@ -337,7 +438,12 @@ async def get_forecast_data():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "OK" if hasattr(app.state, 'initialized') and app.state.initialized else "Initializing"}
+    return {
+        "status": "OK" if hasattr(app.state, 'initialized') and app.state.initialized else "Initializing",
+        "startup_jobs_skipped": SKIP_STARTUP_JOBS,
+        "forecasting_enabled": ENABLE_FORECASTING,
+        "frontend_origin": FRONTEND_ORIGIN,
+    }
 
 
 # API endpoints to expose HTML maps (These seem redundant with the dashboard routes above)
@@ -346,19 +452,19 @@ async def health_check():
 async def get_heatmap_api():
     if not hasattr(app.state, 'initialized') or not app.state.initialized:
         raise HTTPException(503, detail="Service initializing")
-    return FileResponse(f'{STATIC_PATH}/heatmap.html')
+    return get_generated_file('heatmap.html', 'Heatmap')
 
 @app.get("/api/hotspot-map", response_class=HTMLResponse)
 async def get_hotspot_map_api():
     if not hasattr(app.state, 'initialized') or not app.state.initialized:
         raise HTTPException(503, detail="Service initializing")
-    return FileResponse(f'{STATIC_PATH}/hotspot_map.html')
+    return get_generated_file('hotspot_map.html', 'Hotspot Map')
 
 @app.get("/api/status-map", response_class=HTMLResponse)
 async def get_status_map_api():
     if not hasattr(app.state, 'initialized') or not app.state.initialized:
         raise HTTPException(503, detail="Service initializing")
-    return FileResponse(f'{STATIC_PATH}/status_map.html')
+    return get_generated_file('status_map.html', 'Status Map')
 
 @app.get("/api/forecast/crime-trend", response_class=HTMLResponse)
 async def get_crime_trend_api(): # Renamed function

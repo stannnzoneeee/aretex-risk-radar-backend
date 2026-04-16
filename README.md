@@ -26,6 +26,7 @@ ALLOWED_ORIGINS="http://localhost:8000"
 WEATHER_API_KEY="YOUR_WEATHER_API_KEY"
 ENABLE_FORECASTING=false
 ENABLE_PERIODIC_UPDATES=false
+SKIP_STARTUP_JOBS=true
 ```
 
 4. Run the app:
@@ -103,3 +104,5 @@ For production, consider generating forecast HTML in a scheduled/offline job ins
 Vercel Functions have a read-only project filesystem at runtime, with writable temporary storage under `/tmp`. In Vercel, the app writes downloaded CSVs and generated HTML to `/tmp/cv3`, so those files are temporary and can disappear between cold starts.
 
 Because `data/*.csv` is ignored, the deployed app needs MongoDB environment variables so it can download fresh crime data on startup.
+
+By default, Vercel deployments skip heavy startup jobs with `SKIP_STARTUP_JOBS=true` so the backend test UI and `/health` respond quickly. Generated map and forecast files are created lazily, with fallback HTML shown if data is not available yet.
