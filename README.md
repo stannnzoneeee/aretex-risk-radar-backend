@@ -25,6 +25,7 @@ MONGO_DB_NAME="YOUR_DATABASE_NAME"
 ALLOWED_ORIGINS="http://localhost:8000"
 WEATHER_API_KEY="YOUR_WEATHER_API_KEY"
 ENABLE_FORECASTING=false
+ENABLE_PERIODIC_UPDATES=false
 ```
 
 4. Run the app:
@@ -64,11 +65,28 @@ vercel --prod
 
 ## Forecasting Is Paused
 
-Forecasting is intentionally paused for deployment:
+Forecast model training is intentionally paused for deployment:
 
 - `ENABLE_FORECASTING=false` skips Prophet training during startup.
 - `prophet` is commented out in `requirements.txt` to keep the Vercel install smaller.
-- Forecast endpoints return `503` while forecasting is paused.
+- The forecast endpoints still return static graph HTML generated from recent historical counts.
+- `/api/forecast/data` returns the same static trend and top-location data as JSON.
+
+Frontend origin:
+
+```env
+ALLOWED_ORIGINS="https://aretex-risk-radar.vercel.app"
+```
+
+Frontend fetch/iframe URLs:
+
+```text
+/forecast/crime-trend
+/forecast/top-locations
+/api/forecast/crime-trend
+/api/forecast/top-locations
+/api/forecast/data
+```
 
 To turn forecasting back on later:
 

@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 import requests
 from weather_dashboard_generator import generate_weather_dashboard
 from psgc_router import router as psgc_api_router # Import the router
+from static_forecast import build_static_forecast_payload, generate_static_forecast_graphs
 
 
 # Load environment variables
@@ -38,6 +39,7 @@ STATIC_PATH = os.getenv(
 )
 ENABLE_FORECASTING = env_flag("ENABLE_FORECASTING", False)
 ENABLE_PERIODIC_UPDATES = env_flag("ENABLE_PERIODIC_UPDATES", not IS_VERCEL)
+FRONTEND_ORIGIN = "https://aretex-risk-radar.vercel.app"
 
 os.makedirs(DATA_PATH, exist_ok=True)
 os.makedirs(STATIC_PATH, exist_ok=True)
@@ -51,17 +53,28 @@ app.mount("/static", StaticFiles(directory=STATIC_ASSETS_PATH), name="static")
 app.include_router(psgc_api_router) # Re-include the PSGC routes
 templates = Jinja2Templates(directory=os.path.join(current_dir, "templates"))
 
-allowed_origins = [
+default_allowed_origins = [
+    "http://localhost:8000",
+    "http://localhost:5173",
+    "http://127.0.0.1:8000",
+    "http://127.0.0.1:5173",
+    FRONTEND_ORIGIN,
+]
+
+configured_origins = [
     origin.strip()
-    for origin in os.getenv("ALLOWED_ORIGINS", "*").split(",")
+    for origin in os.getenv("ALLOWED_ORIGINS", "").split(",")
     if origin.strip()
 ]
+allowed_origins = configured_origins or default_allowed_origins
+if "*" not in allowed_origins and FRONTEND_ORIGIN not in allowed_origins:
+    allowed_origins.append(FRONTEND_ORIGIN)
 
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins or ["*"],
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_credentials="*" not in allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"]
 )
@@ -74,9 +87,17 @@ def run_forecasting() -> None:
     predict_and_plot_crime_trends(forecast_df, forecast_days=30, output_path=STATIC_PATH)
 
 
-def ensure_forecasting_enabled() -> None:
-    if not ENABLE_FORECASTING:
-        raise HTTPException(503, detail="Crime forecasting is temporarily disabled for this deployment.")
+def run_static_forecasting() -> None:
+    generate_static_forecast_graphs(DATA_PATH, STATIC_PATH)
+
+
+def get_forecast_file(filename: str) -> FileResponse:
+    forecast_path = os.path.join(STATIC_PATH, filename)
+    if not os.path.exists(forecast_path):
+        run_static_forecasting()
+    if not os.path.exists(forecast_path):
+        raise HTTPException(404, detail="Forecast graph is not available yet.")
+    return FileResponse(forecast_path)
 
 
 @app.on_event("startup")
@@ -102,6 +123,7 @@ async def startup_event():
             run_forecasting()
         else:
             print("Crime forecasting is paused. Set ENABLE_FORECASTING=true to generate forecasts.")
+            run_static_forecasting()
 
         # Generate weather dashboard
         generate_weather_dashboard(output_dir=STATIC_PATH)  # Call the function here
@@ -121,6 +143,8 @@ async def startup_event():
                     generate_analysis_maps(new_df, new_kmeans, DATA_PATH, STATIC_PATH)
                     if ENABLE_FORECASTING:
                         run_forecasting()
+                    else:
+                        run_static_forecasting()
 
                     # Re-generate weather dashboard periodically as well? Optional.
                     # generate_weather_dashboard(output_dir=STATIC_PATH)
@@ -168,15 +192,13 @@ async def get_status_map():
 async def get_crime_trend_forecast():
     if not hasattr(app.state, 'initialized') or not app.state.initialized:
         raise HTTPException(503, detail="Service initializing")
-    ensure_forecasting_enabled()
-    return FileResponse(os.path.join(STATIC_PATH, 'crime_trend_forecast.html'))
+    return get_forecast_file('crime_trend_forecast.html')
 
 @app.get("/forecast/top-locations", response_class=HTMLResponse)
 async def get_top_locations_forecast():
     if not hasattr(app.state, 'initialized') or not app.state.initialized:
         raise HTTPException(503, detail="Service initializing")
-    ensure_forecasting_enabled()
-    return FileResponse(os.path.join(STATIC_PATH, 'top_locations_crime.html'))
+    return get_forecast_file('top_locations_crime.html')
 
 # Endpoint to trigger weather dashboard generation manually (optional)
 @app.get("/generate-weather-dashboard", response_class=JSONResponse)
@@ -214,6 +236,16 @@ async def hotspot_data():
         raise HTTPException(status_code=500, detail=f"Failed to get hotspot data: {str(e)}")
 
 
+@app.get("/api/forecast/data", response_class=JSONResponse)
+async def get_forecast_data():
+    if not hasattr(app.state, 'initialized') or not app.state.initialized:
+        raise HTTPException(503, detail="Service initializing")
+    try:
+        return build_static_forecast_payload(DATA_PATH)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get forecast data: {str(e)}")
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "OK" if hasattr(app.state, 'initialized') and app.state.initialized else "Initializing"}
@@ -243,15 +275,13 @@ async def get_status_map_api():
 async def get_crime_trend_api(): # Renamed function
     if not hasattr(app.state, 'initialized') or not app.state.initialized:
         raise HTTPException(503, detail="Service initializing")
-    ensure_forecasting_enabled()
-    return FileResponse(f'{STATIC_PATH}/crime_trend_forecast.html')
+    return get_forecast_file('crime_trend_forecast.html')
 
 @app.get("/api/forecast/top-locations", response_class=HTMLResponse)
 async def get_top_locations_api(): # Renamed function
     if not hasattr(app.state, 'initialized') or not app.state.initialized:
         raise HTTPException(503, detail="Service initializing")
-    ensure_forecasting_enabled()
-    return FileResponse(f'{STATIC_PATH}/top_locations_crime.html')
+    return get_forecast_file('top_locations_crime.html')
 
 # New API endpoint to generate weather dashboard (Redundant with /generate-weather-dashboard)
 # Consider keeping only one endpoint for triggering generation
