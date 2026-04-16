@@ -41,6 +41,8 @@ ENABLE_FORECASTING = env_flag("ENABLE_FORECASTING", False)
 ENABLE_PERIODIC_UPDATES = env_flag("ENABLE_PERIODIC_UPDATES", not IS_VERCEL)
 SKIP_STARTUP_JOBS = env_flag("SKIP_STARTUP_JOBS", IS_VERCEL)
 FRONTEND_ORIGIN = "https://aretex-risk-radar.vercel.app"
+DATA_COLLECTIONS = ['crime_records', 'crime_types', 'locations']
+DATA_FILES = [f"{collection}.csv" for collection in DATA_COLLECTIONS]
 
 os.makedirs(DATA_PATH, exist_ok=True)
 os.makedirs(STATIC_PATH, exist_ok=True)
@@ -84,12 +86,42 @@ app.add_middleware(
 def run_forecasting() -> None:
     from forecasting import load_crime_data, predict_and_plot_crime_trends
 
+    ensure_data_files()
     forecast_df = load_crime_data(DATA_PATH)
     predict_and_plot_crime_trends(forecast_df, forecast_days=30, output_path=STATIC_PATH)
 
 
 def run_static_forecasting() -> None:
+    ensure_data_files()
     generate_static_forecast_graphs(DATA_PATH, STATIC_PATH)
+
+
+def data_files_available() -> bool:
+    return all(
+        os.path.exists(os.path.join(DATA_PATH, filename))
+        and os.path.getsize(os.path.join(DATA_PATH, filename)) > 0
+        for filename in DATA_FILES
+    )
+
+
+def ensure_data_files() -> bool:
+    if data_files_available():
+        return True
+
+    downloader.start_single_download(DATA_COLLECTIONS)
+    return data_files_available()
+
+
+def is_unavailable_html(file_path: str) -> bool:
+    if not os.path.exists(file_path):
+        return True
+
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as file:
+            content = file.read(4096).lower()
+        return "unavailable" in content or "not available yet" in content
+    except OSError:
+        return True
 
 
 def write_placeholder_html(filename: str, title: str, message: str) -> str:
@@ -139,7 +171,7 @@ def ensure_analysis_outputs() -> None:
         return
 
     try:
-        downloader.start_single_download(['crime_records', 'crime_types', 'locations'])
+        ensure_data_files()
         df, kmeans_model = load_and_preprocess_data(DATA_PATH)
         if df.empty:
             raise ValueError("No valid data available")
@@ -174,7 +206,7 @@ def get_generated_file(filename: str, title: str) -> FileResponse:
 
 def get_forecast_file(filename: str) -> FileResponse:
     forecast_path = os.path.join(STATIC_PATH, filename)
-    if not os.path.exists(forecast_path):
+    if is_unavailable_html(forecast_path):
         try:
             run_static_forecasting()
         except Exception as e:
@@ -202,7 +234,7 @@ async def startup_event():
             print("Startup data jobs skipped. Generated files will be created lazily.")
             return
 
-        downloader.start_single_download(['crime_records', 'crime_types', 'locations'])
+        ensure_data_files()
 
         # Load and preprocess data
         df, kmeans_model = load_and_preprocess_data(DATA_PATH)
@@ -431,9 +463,18 @@ async def get_forecast_data():
     if not hasattr(app.state, 'initialized') or not app.state.initialized:
         raise HTTPException(503, detail="Service initializing")
     try:
+        ensure_data_files()
         return build_static_forecast_payload(DATA_PATH)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get forecast data: {str(e)}")
+        print(f"Failed to get forecast data: {str(e)}")
+        return {
+            "mode": "static",
+            "note": "Forecast model training is paused, but static forecast data is not available yet.",
+            "trend": [],
+            "baseline": [],
+            "top_locations": [],
+            "detail": str(e),
+        }
 
 
 @app.get("/health")

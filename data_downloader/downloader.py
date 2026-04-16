@@ -99,4 +99,7 @@ class PeriodicMongoDBDataDownloader:
     
     def __del__(self):
         """Close connection when the object is destroyed."""
-        self.close_connection()
+        try:
+            self.close_connection()
+        except Exception:
+            pass
