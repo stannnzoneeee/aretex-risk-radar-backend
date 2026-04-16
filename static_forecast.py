@@ -9,30 +9,32 @@ TREND_FILENAME = "crime_trend_forecast.html"
 TOP_LOCATIONS_FILENAME = "top_locations_crime.html"
 
 COLORS = {
-    "page": "#07090d",
-    "panel": "#10151c",
-    "plot": "#0c1117",
-    "grid": "rgba(141, 255, 234, 0.13)",
-    "text": "#edfdf9",
-    "muted": "#94a3b8",
-    "line": "#00f5d4",
-    "line_soft": "rgba(0, 245, 212, 0.16)",
-    "baseline": "#ff5c7a",
-    "yellow": "#fee440",
-    "edge": "rgba(141, 255, 234, 0.32)",
+    "page": "#f6fbff",
+    "panel": "#ffffff",
+    "plot": "#fbfdff",
+    "grid": "rgba(8, 145, 178, 0.14)",
+    "text": "#102033",
+    "muted": "#5f6f86",
+    "line": "#0891b2",
+    "line_soft": "rgba(8, 145, 178, 0.14)",
+    "baseline": "#e11d48",
+    "yellow": "#b77900",
+    "edge": "rgba(8, 145, 178, 0.24)",
+    "header": "#f9fdff",
+    "shadow": "rgba(15, 23, 42, 0.12)",
 }
 
 BAR_COLORS = [
-    "#00f5d4",
-    "#fee440",
-    "#ff5c7a",
-    "#4ade80",
-    "#38bdf8",
-    "#f97316",
-    "#22c55e",
-    "#f15bb5",
-    "#a3e635",
-    "#67e8f9",
+    "#0891b2",
+    "#14b8a6",
+    "#e11d48",
+    "#7c3aed",
+    "#f59e0b",
+    "#2563eb",
+    "#16a34a",
+    "#db2777",
+    "#65a30d",
+    "#0ea5e9",
 ]
 
 
@@ -53,8 +55,8 @@ def _empty_page(title: str, message: str) -> str:
             font-family: Arial, sans-serif;
             color: {COLORS["text"]};
             background:
-                linear-gradient(90deg, rgba(141, 255, 234, 0.05) 1px, transparent 1px),
-                linear-gradient(0deg, rgba(141, 255, 234, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(8, 145, 178, 0.07) 1px, transparent 1px),
+                linear-gradient(0deg, rgba(8, 145, 178, 0.07) 1px, transparent 1px),
                 {COLORS["page"]};
             background-size: 32px 32px;
         }}
@@ -64,7 +66,7 @@ def _empty_page(title: str, message: str) -> str:
             border: 1px solid {COLORS["edge"]};
             border-radius: 8px;
             background: {COLORS["panel"]};
-            box-shadow: 0 18px 70px rgba(0, 0, 0, 0.38);
+            box-shadow: 0 18px 60px {COLORS["shadow"]};
         }}
         h1 {{ margin: 0 0 12px; font-size: 24px; }}
         p {{ line-height: 1.5; }}
@@ -189,13 +191,13 @@ def _base_layout(title: str, subtitle: str) -> dict:
             "orientation": "h",
             "x": 0.03,
             "y": 1.03,
-            "bgcolor": "rgba(16, 21, 28, 0.78)",
+            "bgcolor": "rgba(255, 255, 255, 0.88)",
             "bordercolor": COLORS["edge"],
             "borderwidth": 1,
             "font": {"color": COLORS["text"]},
         },
         "hoverlabel": {
-            "bgcolor": "#111827",
+            "bgcolor": "#ffffff",
             "bordercolor": COLORS["line"],
             "font": {"color": COLORS["text"], "family": "Arial, sans-serif"},
         },
@@ -223,8 +225,8 @@ def _write_html(fig: go.Figure, path: str, title: str, subtitle: str) -> None:
             font-family: Arial, sans-serif;
             color: {COLORS["text"]};
             background:
-                linear-gradient(90deg, rgba(141, 255, 234, 0.055) 1px, transparent 1px),
-                linear-gradient(0deg, rgba(141, 255, 234, 0.055) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(8, 145, 178, 0.07) 1px, transparent 1px),
+                linear-gradient(0deg, rgba(8, 145, 178, 0.07) 1px, transparent 1px),
                 {COLORS["page"]};
             background-size: 34px 34px;
         }}
@@ -233,8 +235,8 @@ def _write_html(fig: go.Figure, path: str, title: str, subtitle: str) -> None:
             margin: 18px auto;
             border: 1px solid {COLORS["edge"]};
             border-radius: 8px;
-            background: rgba(16, 21, 28, 0.96);
-            box-shadow: 0 22px 90px rgba(0, 0, 0, 0.42);
+            background: {COLORS["panel"]};
+            box-shadow: 0 22px 70px {COLORS["shadow"]};
             overflow: hidden;
         }}
         header {{
@@ -242,7 +244,8 @@ def _write_html(fig: go.Figure, path: str, title: str, subtitle: str) -> None:
             justify-content: space-between;
             gap: 18px;
             padding: 18px 20px;
-            border-bottom: 1px solid rgba(141, 255, 234, 0.2);
+            background: {COLORS["header"]};
+            border-bottom: 1px solid rgba(8, 145, 178, 0.16);
         }}
         .eyebrow {{
             margin: 0 0 6px;
@@ -266,10 +269,10 @@ def _write_html(fig: go.Figure, path: str, title: str, subtitle: str) -> None:
             min-width: 176px;
             align-self: start;
             padding: 12px;
-            border: 1px solid rgba(254, 228, 64, 0.38);
+            border: 1px solid rgba(183, 121, 0, 0.28);
             border-radius: 8px;
             color: {COLORS["yellow"]};
-            background: rgba(254, 228, 64, 0.08);
+            background: rgba(245, 158, 11, 0.11);
             text-align: right;
         }}
         .status strong {{
@@ -287,7 +290,7 @@ def _write_html(fig: go.Figure, path: str, title: str, subtitle: str) -> None:
         footer {{
             padding: 12px 20px 18px;
             color: {COLORS["muted"]};
-            border-top: 1px solid rgba(141, 255, 234, 0.13);
+            border-top: 1px solid rgba(8, 145, 178, 0.12);
             font-size: 13px;
         }}
         @media (max-width: 720px) {{
